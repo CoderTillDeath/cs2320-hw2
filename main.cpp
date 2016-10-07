@@ -33,7 +33,21 @@ bool wildCompare(string s1, string s2)
 			string subject;
 			string body;
 			emailNode *next;
+			emailNode *prev;
 		};
+		
+void deleteEmail(emailNode * n)
+{
+	if(n->prev != NULL)
+	{
+		n->prev->next = n->next;
+	}
+	
+	if(n->next != NULL)
+	{
+		n->next->prev = n->prev;
+	}
+}
 
 // Comparable
 bool equals(emailNode * n1, emailNode * n2)
@@ -53,6 +67,7 @@ emailNode * newEmail(string name, string subject, string body)
 	node->subject = subject;
 	node->body = body;
 	node->next = NULL;
+	node->prev = NULL;
 	return node;
 }
 
@@ -64,27 +79,26 @@ emailNode * newEmail(string name, string subject, string body)
 			emailList *next;
 		};
 
-bool contains(emailList * list, emailNode * node)
+bool contains(emailNode * current, emailNode * node)
 {
-    emailNode * current = list->first;
-    
-    while(current) {
-		if(equals(current,node))
-		{
-			return true;
-		}
-		current = current->next;
-    }
-    return false;
+	if(current == NULL) return false;
+	
+	if(equals(current,node))
+	{
+		return true;
+	}
+	else
+	{
+		return contains(current->next, node);
+	}
 }
 
-void printList(emailList * list)
+void printList(emailNode * current)
 {
-    emailNode * current = list->first;
-    while(current) {
-        cout << current->name << "\t" << current->subject << "\t" << current->body << endl;
-		current = current->next;
-    }
+	if(current == NULL) return;
+	
+	printf("%s\t%s\t%s\n", current->name.c_str(), current->subject.c_str(), current->body.c_str());
+	printList(current->next);
 }
 
 // Construcutor
@@ -97,25 +111,43 @@ emailList * newEmailList()
 	return list;
 }
 
+void remove(bool all, emailNode * list, emailNode * n)
+{
+	if(list == NULL) return;
+	
+	if(equals(list, n))
+	{
+		deleteEmail(list);
+		if(all)
+		{
+			remove(all,list->next, n);
+		}
+		else
+		{
+			return;
+		}
+	}
+	
+	remove(all,list->next, n);
+}
+
 void remove(emailList * list, emailNode * n)
 {
-    emailNode * previous = list->first;
+    emailNode * current = list->first;
     
-    while(previous != NULL && equals(previous,n)){
-		list->first = previous->next;
-		previous = previous->next;
+    while(current != NULL && equals(current,n)){
+		list->first = current->next;
+		deleteEmail(current);
+		return;
     }
    
-    if(previous != NULL)
+    if(current != NULL)
     { 
-        emailNode * current = previous->next;
-    
         while(current) {
     		if(equals(current,n)) {
-    			previous->next = current->next;
+    			deleteEmail(current);
     			break;
     		}
-            previous = current;
             current = current->next;
         }
     }
@@ -123,26 +155,20 @@ void remove(emailList * list, emailNode * n)
 
 void removeAll(emailList * list, emailNode * n)
 {
-    emailNode * previous = list->first;
+    emailNode * current = list->first;
     
-    while(previous != NULL && equals(previous,n)){
-		list->first = previous->next;
-		previous = previous->next;
+    while(current != NULL && equals(current,n)){
+		list->first = current->next;
+		current = current->next;
     }
     
-    if(previous != NULL)
+    if(current != NULL)
     {
-        emailNode * current = previous->next;
-    
         while(current) 
         {
 	    	if(equals(current,n)) 
     		{
-			    previous->next = current->next;
-		    }
-	    	else 
-    		{
-			    previous = current;
+			    deleteEmail(current);
 		    }
             current = current->next;
         }
@@ -160,7 +186,7 @@ void insert(emailList * list, string name, string subject, string body)
     }
     else
     {
-		if(!contains(list, n))
+		if(!contains(list->first, n))
 		{
 			if(contains(subject,"(Cancelled)"))
 			{
@@ -183,6 +209,7 @@ void insert(emailList * list, string name, string subject, string body)
                 }
                 else
                 {
+					n->prev = list->last;
 				    list->last->next = n;
 				    list->last = n;
                 }
@@ -191,28 +218,32 @@ void insert(emailList * list, string name, string subject, string body)
     }
 }
 
+string getBody(emailNode * comparator, emailNode * current)
+{
+	if(current == NULL) return "";
+	
+	string name = comparator->name;
+	string subject = comparator->subject;
+	
+	if(current->name.compare(name) == 0 && current->subject.compare(subject) == 0)
+	{
+		deleteEmail(current);
+		
+		return ", " + current->body + getBody(comparator, current->next);
+	}
+	else
+	{
+		return getBody(comparator, current->next);
+	}
+}
+
 void addAllLike(emailList * list, emailNode * node)
 {
-    emailNode * prev = NULL;
     emailNode * current = node;
     string name = current->name;
     string subject = current->subject;
 
-    string ALL = current->body;
-    prev = current;
-    current = current->next;
-    
-	while(current) {
-		if(current->name.compare(name) == 0 && current->subject.compare(subject) == 0)
-		{
-			ALL += ", " + current->body;
-			prev->next = current->next;
-        }
-        else {
-			prev = current;
-		}        
-        current = current->next;
-    }
+    string ALL = current->body + getBody(node,current->next);
     
     insert(list,name,subject,ALL);
 }
@@ -292,43 +323,52 @@ emailList * printInterleaved(fileList * l, int size)
 	return finalList;
 }
 
+void readFile(ifstream * file, emailList * e)
+{
+	string line = "";
+	if(getline(*file, line))
+	{
+		if(line.length() != 0 && line.at(0) != '#')
+		{
+			string name = before(line,"\t");
+			string subject = before(after(line,"\t"), "\t");
+			string body = after(after(line, "\t"),"\t");
+            insert(e, name, subject, body);
+		}
+		readFile(file,e);
+	}
+}
+
+int readFiles(string input, fileList * f, int i)
+{
+	ifstream file (input + "." + to_string(i) + ".txt");
+
+    if(!file.is_open()) 
+    {
+		i--;
+		return i;
+	}
+
+	emailList * e = newEmailList();
+
+	readFile(&file,e);
+		
+    emailList * list = getGrouped(e);
+    
+	insert(f,list);
+	
+	return readFiles(input,f,i+1);
+}
+
 
 int main(int argc, const char * argv[])
 {
     string input = argv[1];
-    input = input.substr(6, input.length() - 12);
-
+	input = input.substr(6, input.length() - 12);
+	
     fileList * f = newFileList();
 
-    int i = 1;
-
-    for(;true; i++)
-    {
-		ifstream file (input + "." + to_string(i) + ".txt");
-		string line = "";
-
-        if(!file.is_open()) 
-        {
-			i--;
-			break;
-		}
-
-		emailList * e = newEmailList();
-
-		while(getline(file, line))
-		{
-			if(line.length() != 0 && line.at(0) != '#')
-			{
-				string name = before(line,"\t");
-				string subject = before(after(line,"\t"), "\t");
-				string body = after(after(line, "\t"),"\t");
-                insert(e, name, subject, body);
-			}
-		}
-        emailList * list = getGrouped(e);
+    int i = readFiles(input,f,1);
     
-		insert(f,list);
-    }
-    
-    printList(printInterleaved(f,i));
+    printList(printInterleaved(f,i)->first);
 }
