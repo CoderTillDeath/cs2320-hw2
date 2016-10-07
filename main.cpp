@@ -131,48 +131,38 @@ void remove(bool all, emailNode * list, emailNode * n)
 	remove(all,list->next, n);
 }
 
+void remove(bool all, emailList * list, emailNode * n)
+{
+	if(list->first == NULL) return;
+	
+	if(equals(list->first, n))
+	{
+		deleteEmail(list->first);
+		list->first = list->first->next;
+		
+		if(!all)
+		{
+			return;
+		}
+		else
+		{
+			remove(all,list, n);
+		}
+	}
+	else
+	{
+		remove(all, list->first->next, n);
+	}
+}
+
 void remove(emailList * list, emailNode * n)
 {
-    emailNode * current = list->first;
-    
-    while(current != NULL && equals(current,n)){
-		list->first = current->next;
-		deleteEmail(current);
-		return;
-    }
-   
-    if(current != NULL)
-    { 
-        while(current) {
-    		if(equals(current,n)) {
-    			deleteEmail(current);
-    			break;
-    		}
-            current = current->next;
-        }
-    }
+    remove(false,list,n);
 }
 
 void removeAll(emailList * list, emailNode * n)
 {
-    emailNode * current = list->first;
-    
-    while(current != NULL && equals(current,n)){
-		list->first = current->next;
-		current = current->next;
-    }
-    
-    if(current != NULL)
-    {
-        while(current) 
-        {
-	    	if(equals(current,n)) 
-    		{
-			    deleteEmail(current);
-		    }
-            current = current->next;
-        }
-    }
+    remove(true,list,n);
 }
 
 void insert(emailList * list, string name, string subject, string body)
@@ -248,17 +238,12 @@ void addAllLike(emailList * list, emailNode * node)
     insert(list,name,subject,ALL);
 }
 
-emailList * getGrouped (emailList * list)
+void getGrouped (emailList * newlist, emailNode * current)
 {
-    emailList * newlist = newEmailList();
+	if(current == NULL) return;
     
-    emailNode * current = list->first;
-    while(current) {
-		addAllLike(newlist,current);
-        current = current->next;
-    }
-
-    return newlist;
+	addAllLike(newlist,current);
+    getGrouped(newlist,current->next);
 }
 
 		struct fileList {
@@ -290,18 +275,36 @@ fileList * newFileList()
 	return list;
 }
 
+void insertLists(emailNode ** arr, emailList * current, int i)
+{
+	if(current == NULL) return;
+	arr[i] = current->first;
+	insertLists(arr, current->next, i+1);
+}
+
+bool addIter(emailList * finalList, emailNode ** list, int i, int max)
+{
+	if(i == max) return false;
+	
+	bool result = false;
+	
+	if(list[i])
+	{
+		result = true;
+		insert(finalList,list[i]->name,list[i]->subject,list[i]->body);
+		list[i] = list[i]->next;
+	}
+	
+	return result || addIter(finalList, list,i+1,max);
+}
+
 emailList * printInterleaved(fileList * l, int size)
 {
 	emailList * finalList = newEmailList();
 	
 	emailNode ** list = new emailNode*[size];
 	
-	emailList * current = l->first;
-	
-	for(int i = 0;current;i++) {
-		list[i] = current->first;
-		current = current->next;
-	}
+	insertLists(list, l->first, 0);
 	
 	bool repeat = false;
 	
@@ -353,7 +356,8 @@ int readFiles(string input, fileList * f, int i)
 
 	readFile(&file,e);
 		
-    emailList * list = getGrouped(e);
+    emailList * list = newEmailList();
+    getGrouped(list,e->first);
     
 	insert(f,list);
 	
