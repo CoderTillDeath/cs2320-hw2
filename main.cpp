@@ -295,7 +295,15 @@ bool addIter(emailList * finalList, emailNode ** list, int i, int max)
 		list[i] = list[i]->next;
 	}
 	
-	return result || addIter(finalList, list,i+1,max);
+	return addIter(finalList, list,i+1,max) || result;
+}
+
+void repeatAdd(emailList * finalList, emailNode ** list, int max)
+{
+	if(addIter(finalList,list,0,max))
+	{
+		repeatAdd(finalList,list,max);
+	}
 }
 
 emailList * printInterleaved(fileList * l, int size)
@@ -308,21 +316,8 @@ emailList * printInterleaved(fileList * l, int size)
 	
 	bool repeat = false;
 	
-	do
-	{
-		repeat = false;
-		for(int i = 0; i < size; i++)
-		{
-			if(list[i])
-			{
-				repeat = true;
-				insert(finalList,list[i]->name,list[i]->subject,list[i]->body);
-				list[i] = list[i]->next;
-			}
-		}
-	}
-	while(repeat);
-	
+	repeatAdd(finalList, list, size);
+		
 	return finalList;
 }
 
